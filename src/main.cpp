@@ -34,6 +34,21 @@ py::object to_python_object(lua_State* L, int index) {
         result_object = py::str(result);
     }
 
+    else if (lua_istable(L, index)) {
+        py::dict tmp_dict;
+        lua_pushnil(L);
+        
+        while (lua_next(L, -2) != 0) {
+            // the key is now at index -2, and the value at index -1
+            py::object key = to_python_object(L, -2);
+            py::object value = to_python_object(L, -1);
+            tmp_dict[key] = value;
+            lua_pop(L, 1);
+        }
+        
+        return tmp_dict;
+    }
+
     return result_object;
 }
 
@@ -77,21 +92,6 @@ py::object run_lua(const char* lua_code, py::tuple args, const char* function_na
     }
 
     if (lua_pcall(L, args_size, 1, 0) == LUA_OK) {
-        if (lua_istable(L, -1)) {
-            py::dict tmp_dict;
-            lua_pushnil(L);
-            while (lua_next(L, -2) != 0) {
-                // the key is now at index -2, and the value at index -1
-                py::object key = to_python_object(L, -2);
-                py::object value = to_python_object(L, -1);
-                tmp_dict[key] = value;
-                lua_pop(L, 1);
-            }
-
-            close_lua(L);
-            return tmp_dict;
-        }
-
         py::object result = to_python_object(L, -1);
         lua_pop(L, 1);
         close_lua(L);
