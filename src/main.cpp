@@ -11,6 +11,32 @@ void close_lua(lua_State* L) {
     lua_close(L);
 }
 
+py::object to_python_object(lua_State* L, int index) {
+    py::object result_object = py::none();
+
+    if (lua_isinteger(L, index)) {
+        lua_Integer result = lua_tointeger(L, index);
+        result_object = py::int_(result);
+    }
+    
+    else if (lua_isnumber(L, index)) {
+        lua_Number result = lua_tonumber(L, index);
+        result_object = py::float_(result);
+    }
+
+    else if(lua_isboolean(L, index)) {
+        int result = lua_toboolean(L, index);
+        result_object = py::bool_(result);
+    }
+
+    else if (lua_isstring(L, index)) {
+        const char* result = lua_tostring(L, index);
+        result_object = py::str(result);
+    }
+
+    return result_object;
+}
+
 py::object run_lua(const char* lua_code, py::tuple args, const char* function_name) {
     lua_State *L = luaL_newstate();
     luaL_openlibs(L);
@@ -51,37 +77,25 @@ py::object run_lua(const char* lua_code, py::tuple args, const char* function_na
     }
 
     if (lua_pcall(L, args_size, 1, 0) == LUA_OK) {
-        if (lua_isinteger(L, -1)) {
-            lua_Integer result = lua_tointeger(L, -1);
-            lua_pop(L, 1);
+        if (lua_istable(L, -1)) {
+            py::dict tmp_dict;
+            lua_pushnil(L);
+            while (lua_next(L, -2) != 0) {
+                // the key is now at index -2, and the value at index -1
+                py::object key = to_python_object(L, -2);
+                py::object value = to_python_object(L, -1);
+                tmp_dict[key] = value;
+                lua_pop(L, 1);
+            }
+
             close_lua(L);
-            return py::int_(result);
+            return tmp_dict;
         }
 
-        else if (lua_isnumber(L, -1)) {
-            lua_Number result = lua_tonumber(L, -1);
-            lua_pop(L, 1);
-            close_lua(L);
-            return py::float_(result);
-        }
-    
-        else if(lua_isboolean(L, -1)) {
-            int result = lua_toboolean(L, -1);
-            lua_pop(L, 1);
-            close_lua(L);
-            return py::bool_(result);
-        }
-
-        else if (lua_isnil(L, -1)) {
-            lua_pop(L, 1);
-            close_lua(L);
-            return py::none();
-        }
-        
-        const char* result = lua_tostring(L, -1);
+        py::object result = to_python_object(L, -1);
         lua_pop(L, 1);
         close_lua(L);
-        return py::str(result);
+        return result;
     }
     
     close_lua(L);
