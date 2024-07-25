@@ -24,6 +24,10 @@ py::object to_python_object(lua_State* L, int index) {
         result_object = py::float_(result);
     }
 
+    else if (lua_isnil(L, index)) {
+        result_object = py::none();
+    }
+
     else if(lua_isboolean(L, index)) {
         int result = lua_toboolean(L, index);
         result_object = py::bool_(result);
@@ -67,6 +71,10 @@ void to_lua_object(lua_State* L, py::object obj) {
     
     else if (py::isinstance<py::str>(obj)) {
         lua_pushstring(L, obj.cast<std::string>().c_str());
+    }
+
+    else if (py::isinstance<py::none>(obj)) {
+        lua_pushinteger(L, 0);
     }
     
     else if(py::isinstance<py::dict>(obj)) {
