@@ -52,6 +52,36 @@ py::object to_python_object(lua_State* L, int index) {
     return result_object;
 }
 
+void to_lua_object(lua_State* L, py::object obj) {
+    if (py::isinstance<py::int_>(obj)) {
+        lua_pushinteger(L, obj.cast<long long>());
+    }
+    
+    else if (py::isinstance<py::float_>(obj)) {
+        lua_pushnumber(L, obj.cast<double>());
+    }
+    
+    else if (py::isinstance<py::bool_>(obj)) {
+        lua_pushboolean(L, obj.cast<bool>());
+    }
+    
+    else if (py::isinstance<py::str>(obj)) {
+        lua_pushstring(L, obj.cast<std::string>().c_str());
+    }
+    
+    else if(py::isinstance<py::dict>(obj)) {
+        lua_newtable(L);
+        py::dict dict = obj;
+        for (auto item : dict) {
+            py::object key = py::reinterpret_borrow<py::object>(item.first);
+            py::object value = py::reinterpret_borrow<py::object>(item.second);
+            
+            to_lua_object(L, value);
+            lua_setfield(L, -2, py::str(key).cast<std::string>().c_str());
+        }
+    }
+}
+
 py::object run_lua(const char* lua_code, py::tuple args, const char* function_name) {
     lua_State *L = luaL_newstate();
     luaL_openlibs(L);
@@ -73,22 +103,7 @@ py::object run_lua(const char* lua_code, py::tuple args, const char* function_na
 
     for (py::size_t i = 0; i < args_size; i++) {
         py::object obj = args[i];
-   
-        if (py::isinstance<py::int_>(obj)) {
-            lua_pushinteger(L, obj.cast<long long>());
-        }
-
-        else if (py::isinstance<py::float_>(obj)) {
-            lua_pushnumber(L, obj.cast<double>());
-        }
-
-        else if (py::isinstance<py::bool_>(obj)) {
-            lua_pushboolean(L, obj.cast<bool>());
-        }
-
-        else if (py::isinstance<py::str>(obj)) {
-            lua_pushstring(L, obj.cast<std::string>().c_str());
-        }
+        to_lua_object(L, obj);
     }
 
     if (lua_pcall(L, args_size, 1, 0) == LUA_OK) {
